@@ -439,7 +439,7 @@ class Sidebar extends StatelessWidget {
                 child: ListView.separated(
                   padding: EdgeInsets.zero,
                   itemCount: navItems.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (_, i) => _NavTile(
                     item: navItems[i],
                     selected: i == selected,
@@ -756,7 +756,7 @@ class SectionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailing != null) trailing!,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 14),
