@@ -1,10 +1,95 @@
 import 'package:flutter/material.dart';
+import 'learningdashboard.dart';
 
-// LearnMate - Learning Dashboard + Light/Dark theme
+// LearnMate - Learning Dashboard (Responsive + Adaptive) v2
 // Light : Morning Village   |   Dark : Galaxy Night
-// UI only, tanpa dependency tambahan. Taruh di lib/main.dart.
+// UI only, tanpa dependency tambahan. Taruh di lib/learningdashboard.dart.
+//
+// Pembagian tugas API responsif:
+//   LayoutBuilder      -> lebar area yang tersedia (struktur navigasi, kolom grid)
+//   OrientationBuilder -> portrait / landscape (mode padat di HP miring)
+//   MediaQuery         -> tinggi jendela (mode padat) dan skala teks sistem
+//
+// Penanda perubahan dari v1: // BARU dan // UBAH
+
+// Nyalakan (true) saat testing responsif. Muncul chip kecil di pojok kanan
+// bawah berisi lebar, kelas layar, orientasi, tinggi jendela, skala teks.
+const bool kShowScreenInfo = false;
 
 void main() => runApp(const LearnMateApp());
+
+/// ---------------------------------------------------------------
+/// BREAKPOINT & UKURAN (satu sumber kebenaran)
+/// ---------------------------------------------------------------
+enum ScreenSize { mobile, tablet, desktop }
+
+class Breakpoints {
+  static const double tablet = 700; // lebar LAYAR mulai tablet
+  static const double desktop = 1000; // lebar LAYAR mulai desktop
+  static const double splitInner = 700; // lebar AREA KONTEN: dua kartu tengah berdampingan
+  static const double shortHeight = 500; // BARU: tinggi jendela di bawah ini = "pendek"
+
+  static ScreenSize of(double width) {
+    if (width >= desktop) return ScreenSize.desktop;
+    if (width >= tablet) return ScreenSize.tablet;
+    return ScreenSize.mobile;
+  }
+}
+
+class Dim {
+  static const double gap = 16;
+  static const double radiusCard = 18;
+  static const double radiusInner = 14;
+  static const double minTap = 48; // area sentuh minimal (pedoman 48 dp)
+  static const double maxContent = 1100;
+  static const double sidebarFull = 256;
+  static const double sidebarRail = 84;
+  static const double toolbarDense = 48; // BARU: AppBar saat mode padat
+
+  // UBAH: ada mode padat (HP miring), padding dibatasi maksimal 16.
+  static double pagePadding(ScreenSize s, {bool dense = false}) {
+    double base;
+    switch (s) {
+      case ScreenSize.mobile:
+        base = 16;
+        break;
+      case ScreenSize.tablet:
+        base = 24;
+        break;
+      case ScreenSize.desktop:
+        base = 28;
+        break;
+    }
+    return dense && base > 16 ? 16 : base;
+  }
+
+  // BARU: jarak header ke konten
+  static double headerGap(bool dense) => dense ? 12 : 22;
+}
+
+/// ---------------------------------------------------------------
+/// BARU: ScreenInfo
+/// Satu objek yang merangkum semua fakta layar dari tiga sumber:
+/// LayoutBuilder (width), MediaQuery (window), OrientationBuilder.
+/// ---------------------------------------------------------------
+class ScreenInfo {
+  final double width; // lebar area tersedia (LayoutBuilder)
+  final Size window; // ukuran jendela penuh (MediaQuery.sizeOf)
+  final Orientation orientation; // portrait / landscape (OrientationBuilder)
+  final ScreenSize size; // mobile / tablet / desktop
+
+  ScreenInfo({
+    required this.width,
+    required this.window,
+    required this.orientation,
+  }) : size = Breakpoints.of(width);
+
+  bool get isLandscape => orientation == Orientation.landscape;
+
+  /// Mode padat: landscape DAN tinggi jendela pendek (HP miring).
+  /// Ruang vertikal sempit, jadi jarak dan tinggi bar dipadatkan.
+  bool get isDense => isLandscape && window.height < Breakpoints.shortHeight;
+}
 
 /// ---------------------------------------------------------------
 /// THEME CONTROLLER
@@ -60,7 +145,7 @@ class CustomColors extends ThemeExtension<CustomColors> {
   });
 
   // Morning Village
-  // Logo: "Learn" ungu + "Mate" biru tua (kebalikan dari dark)
+  // Logo: "Learn" hijau + "Mate" kuning-hijau
   static const light = CustomColors(
     accent: Color(0xFFA8DADC), // Sky Blue
     onAccent: Color(0xFF1F3B3D),
@@ -71,8 +156,8 @@ class CustomColors extends ThemeExtension<CustomColors> {
     sidebarText: Color(0xFFF8FAF5),
     activeBg: Color(0xFFF4D35E), // Warm Sunrise Yellow
     activeFg: Color(0xFF26352D),
-    brand: Color.fromARGB(255, 190, 224, 18), // "Mate" biru tua
-    brandLearn: Color.fromARGB(255, 9, 157, 29), // "Learn" hijau
+    brand: Color.fromARGB(255, 190, 224, 18),
+    brandLearn: Color.fromARGB(255, 9, 157, 29),
     textPrimary: Color(0xFF26352D),
     textSecondary: Color(0xFF6B766D),
     badgeBg: Color(0xFFE9EDE7),
@@ -80,7 +165,7 @@ class CustomColors extends ThemeExtension<CustomColors> {
   );
 
   // Galaxy Night
-  // Logo: "Learn" biru tua + "Mate" ungu
+  // Logo: "Learn" biru + "Mate" ungu
   static const dark = CustomColors(
     accent: Color(0xFF4CC9F0), // Starlight Cyan
     onAccent: Color(0xFF0B1020),
@@ -91,8 +176,8 @@ class CustomColors extends ThemeExtension<CustomColors> {
     sidebarText: Color(0xFFF1F5F9),
     activeBg: Color(0xFF6C63FF), // Cosmic Indigo
     activeFg: Color(0xFFFFFFFF),
-    brand: Color(0xFFB07CFF), // "Mate" ungu
-    brandLearn: Color(0xFF4D6BFE), // "Learn" biru tua
+    brand: Color(0xFFB07CFF),
+    brandLearn: Color(0xFF4D6BFE),
     textPrimary: Color(0xFFF8FAFC),
     textSecondary: Color(0xFF94A3B8),
     badgeBg: Color(0xFF1F2940),
@@ -194,6 +279,25 @@ ThemeData _buildTheme({
   );
 }
 
+// Tema dibuat sekali (top-level), bukan dibangun ulang setiap toggle.
+final ThemeData lightTheme = _buildTheme(
+  brightness: Brightness.light,
+  primary: const Color(0xFF7FB77E), // Sage Green
+  secondary: const Color(0xFFF4D35E), // Warm Sunrise Yellow
+  surface: const Color(0xFFFFFDF5), // Rice Field Cream
+  background: const Color(0xFFF8FAF5), // Morning Mist
+  colors: CustomColors.light,
+);
+
+final ThemeData darkTheme = _buildTheme(
+  brightness: Brightness.dark,
+  primary: const Color(0xFF6C63FF), // Cosmic Indigo
+  secondary: const Color(0xFF9D4EDD), // Nebula Purple
+  surface: const Color(0xFF161B33), // Night Sky
+  background: const Color(0xFF0B1020), // Deep Space
+  colors: CustomColors.dark,
+);
+
 class LearnMateApp extends StatelessWidget {
   const LearnMateApp({super.key});
 
@@ -206,22 +310,8 @@ class LearnMateApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           title: 'LearnMate',
           themeMode: themeController.mode,
-          theme: _buildTheme(
-            brightness: Brightness.light,
-            primary: const Color(0xFF7FB77E), // Sage Green
-            secondary: const Color(0xFFF4D35E), // Warm Sunrise Yellow
-            surface: const Color(0xFFFFFDF5), // Rice Field Cream
-            background: const Color(0xFFF8FAF5), // Morning Mist
-            colors: CustomColors.light,
-          ),
-          darkTheme: _buildTheme(
-            brightness: Brightness.dark,
-            primary: const Color(0xFF6C63FF), // Cosmic Indigo
-            secondary: const Color(0xFF9D4EDD), // Nebula Purple
-            surface: const Color(0xFF161B33), // Night Sky
-            background: const Color(0xFF0B1020), // Deep Space
-            colors: CustomColors.dark,
-          ),
+          theme: lightTheme,
+          darkTheme: darkTheme,
           home: const DashboardShell(),
         );
       },
@@ -263,7 +353,7 @@ const latestCourses = <Course>[
 ];
 
 /// ---------------------------------------------------------------
-/// SHELL (responsive: desktop / tablet / mobile)
+/// SHELL (adaptive: Drawer / rail ikon / sidebar penuh)
 /// ---------------------------------------------------------------
 class DashboardShell extends StatefulWidget {
   const DashboardShell({super.key});
@@ -279,56 +369,105 @@ class _DashboardShellState extends State<DashboardShell> {
   Widget build(BuildContext context) {
     final c = context.cc;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final isMobile = w < 700;
-        final isTablet = w >= 700 && w < 1000;
+    // BARU: MediaQuery.sizeOf hanya memicu rebuild saat UKURAN berubah
+    // (lebih hemat daripada MediaQuery.of).
+    final window = MediaQuery.sizeOf(context);
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
 
-        void onSelect(int i) {
-          setState(() => selected = i);
-          if (isMobile) Navigator.of(context).maybePop();
-        }
+    // BARU: OrientationBuilder -> portrait / landscape
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        // LayoutBuilder -> lebar area yang benar-benar tersedia
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final info = ScreenInfo(
+              width: constraints.maxWidth,
+              window: window,
+              orientation: orientation,
+            );
+            final size = info.size;
+            final isMobile = size == ScreenSize.mobile;
+            final isTablet = size == ScreenSize.tablet;
 
-        return Scaffold(
-          appBar: isMobile
-              ? AppBar(
-                  backgroundColor: c.sidebarBg,
-                  foregroundColor: c.sidebarText,
-                  surfaceTintColor: Colors.transparent,
-                  elevation: 0,
-                  title: const BrandText(size: 20),
-                  actions: [
-                    ThemeToggleButton(color: c.sidebarText),
-                    const SizedBox(width: 4),
-                  ],
-                )
-              : null,
-          drawer: isMobile
-              ? Drawer(
-                  backgroundColor: c.sidebarBg,
-                  shape: const RoundedRectangleBorder(),
-                  child: Sidebar(
-                    compact: false,
-                    selected: selected,
-                    onSelect: onSelect,
+            void onSelect(int i) {
+              setState(() => selected = i);
+              if (isMobile) Navigator.of(context).maybePop();
+            }
+
+            return Scaffold(
+              appBar: isMobile
+                  ? AppBar(
+                      backgroundColor: c.sidebarBg,
+                      foregroundColor: c.sidebarText,
+                      surfaceTintColor: Colors.transparent,
+                      elevation: 0,
+                      // UBAH: AppBar lebih pendek saat HP miring
+                      toolbarHeight: info.isDense ? Dim.toolbarDense : null,
+                      title: const BrandText(size: 20),
+                      actions: [
+                        ThemeToggleButton(color: c.sidebarText),
+                        const SizedBox(width: 4),
+                      ],
+                    )
+                  : null,
+              drawer: isMobile
+                  ? Drawer(
+                      backgroundColor: c.sidebarBg,
+                      shape: const RoundedRectangleBorder(),
+                      child: Sidebar(
+                        compact: false,
+                        dense: info.isDense, // UBAH
+                        selected: selected,
+                        onSelect: onSelect,
+                      ),
+                    )
+                  : null,
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Row(
+                    children: [
+                      if (!isMobile)
+                        SizedBox(
+                          width: isTablet ? Dim.sidebarRail : Dim.sidebarFull,
+                          child: Sidebar(
+                            compact: isTablet,
+                            dense: info.isDense, // UBAH
+                            selected: selected,
+                            onSelect: onSelect,
+                          ),
+                        ),
+                      Expanded(child: DashboardBody(info: info)), // UBAH
+                    ],
                   ),
-                )
-              : null,
-          body: Row(
-            children: [
-              if (!isMobile)
-                SizedBox(
-                  width: isTablet ? 84 : 256,
-                  child: Sidebar(
-                    compact: isTablet,
-                    selected: selected,
-                    onSelect: onSelect,
-                  ),
-                ),
-              Expanded(child: DashboardBody(isMobile: isMobile)),
-            ],
-          ),
+                  // Chip debug (hanya aktif kalau kShowScreenInfo = true)
+                  if (kShowScreenInfo)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.black87, // khusus debug
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${info.width.round()} px · ${size.name} · '
+                            '${orientation.name} · h=${window.height.round()} · '
+                            'teks x${textScale.toStringAsFixed(2)}'
+                            '${info.isDense ? ' · padat' : ''}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -385,12 +524,14 @@ class BrandText extends StatelessWidget {
 
 class Sidebar extends StatelessWidget {
   final bool compact;
+  final bool dense; // BARU: mode padat (HP miring)
   final int selected;
   final ValueChanged<int> onSelect;
 
   const Sidebar({
     super.key,
     required this.compact,
+    this.dense = false,
     required this.selected,
     required this.onSelect,
   });
@@ -404,7 +545,10 @@ class Sidebar extends StatelessWidget {
       color: c.sidebarBg,
       child: SafeArea(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 20),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 16,
+            vertical: dense ? 12 : 20, // UBAH
+          ),
           child: Column(
             children: [
               // Brand
@@ -428,18 +572,27 @@ class Sidebar extends StatelessWidget {
                   ),
                   if (!compact) ...[
                     const SizedBox(width: 10),
-                    const BrandText(),
+                    // FittedBox: logo mengecil, bukan overflow, saat teks
+                    // sistem diperbesar.
+                    const Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: BrandText(),
+                      ),
+                    ),
                   ],
                 ],
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: dense ? 12 : 28), // UBAH
 
               // Nav
               Expanded(
                 child: ListView.separated(
                   padding: EdgeInsets.zero,
                   itemCount: navItems.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  separatorBuilder: (_, __) =>
+                      SizedBox(height: dense ? 4 : 6), // UBAH
                   itemBuilder: (_, i) => _NavTile(
                     item: navItems[i],
                     selected: i == selected,
@@ -469,7 +622,8 @@ class Sidebar extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: muted,
                       side: BorderSide(color: c.sidebarText.withAlpha(50)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: EdgeInsets.symmetric(
+                          vertical: dense ? 10 : 14), // UBAH
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
@@ -508,8 +662,10 @@ class _NavTile extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          height: 46,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 14),
+          // minHeight (bukan height tetap) -> tile ikut tumbuh kalau teks
+          // diperbesar, dan tetap >= 48 dp untuk sentuhan.
+          constraints: const BoxConstraints(minHeight: Dim.minTap),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 14, vertical: 4),
           decoration: BoxDecoration(
             color: selected ? c.activeBg : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
@@ -521,12 +677,16 @@ class _NavTile extends StatelessWidget {
               Icon(item.icon, size: 20, color: fg),
               if (!compact) ...[
                 const SizedBox(width: 12),
-                Text(
-                  item.label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: fg,
+                Flexible(
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: fg,
+                    ),
                   ),
                 ),
               ],
@@ -541,177 +701,216 @@ class _NavTile extends StatelessWidget {
 }
 
 /// ---------------------------------------------------------------
-/// DASHBOARD BODY
+/// AutoGrid
+/// Jumlah kolom dihitung otomatis dari lebar yang tersedia
+/// (LayoutBuilder) dan skala teks sistem (MediaQuery). Item "yatim"
+/// (baris terakhir sendirian) dihindari.
 /// ---------------------------------------------------------------
-class DashboardBody extends StatelessWidget {
-  final bool isMobile;
-  const DashboardBody({super.key, required this.isMobile});
+class AutoGrid extends StatelessWidget {
+  final List<Widget> children;
+  final double minItemWidth;
+  final double spacing;
+
+  const AutoGrid({
+    super.key,
+    required this.children,
+    required this.minItemWidth,
+    this.spacing = Dim.gap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final c = context.cc;
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    // BARU: MediaQuery.textScalerOf -> kalau teks sistem diperbesar, lebar
+    // minimal kartu ikut membesar, sehingga kolom berkurang dan teks tidak
+    // terhimpit. Dibatasi 1.0 - 1.6 supaya layout tetap masuk akal.
+    final textScale = (MediaQuery.textScalerOf(context).scale(14) / 14)
+        .clamp(1.0, 1.6)
+        .toDouble();
+    final minWidth = minItemWidth * textScale;
 
     return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final pad = w < 600 ? 16.0 : 28.0;
-        final wideStats = w >= 640;
-        final wideMid = w >= 820;
+      builder: (context, box) {
+        final w = box.maxWidth;
+        var cols = ((w + spacing) / (minWidth + spacing)).floor();
+        cols = cols.clamp(1, children.length).toInt();
+        // 3 item + 2 kolom = 1 item yatim -> turunkan kolom
+        while (cols > 1 && children.length % cols != 0) {
+          cols--;
+        }
+        final itemWidth = (w - spacing * (cols - 1)) / cols;
 
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(pad),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header (tanpa nama user)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Siap ngoding hari ini? 👋',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.6,
-                                color: c.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Ringkasan perjalanan belajar kamu di LearnMate.',
-                              style: TextStyle(
-                                  color: c.textSecondary, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!isMobile)
-                        Container(
-                          decoration: BoxDecoration(
-                            color: c.cardColor,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: c.cardBorder),
-                          ),
-                          child: ThemeToggleButton(color: c.textPrimary),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  // Stats
-                  _responsiveRow(
-                    wide: wideStats,
-                    gap: 16,
-                    children: [
-                      StatCard(
-                        icon: Icons.menu_book_rounded,
-                        value: '6',
-                        label: 'Total materi',
-                        color: context.cs.primary,
-                      ),
-                      StatCard(
-                        icon: Icons.task_alt_rounded,
-                        value: '0',
-                        label: 'Materi selesai',
-                        color: c.accent,
-                      ),
-                      StatCard(
-                        icon: Icons.emoji_events_rounded,
-                        value: '0%',
-                        label: 'Rata-rata nilai kuis',
-                        color: c.highlight, // achievement
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Sedang dipelajari + Progres
-                  _responsiveRow(
-                    wide: wideMid,
-                    gap: 16,
-                    flexes: const [3, 2],
-                    stretch: true,
-                    children: const [
-                      _CurrentLearningCard(),
-                      _ProgressCard(),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Materi terbaru
-                  SectionCard(
-                    title: 'Materi terbaru',
-                    trailing: TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(foregroundColor: context.tone),
-                      child: const Text('Lihat semua'),
-                    ),
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < latestCourses.length; i++) ...[
-                          CourseTile(course: latestCourses[i]),
-                          if (i != latestCourses.length - 1)
-                            const SizedBox(height: 10),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Ringkasan aktivitas
-                  const SectionCard(
-                    title: 'Ringkasan aktivitas',
-                    child: _EmptyState(
-                      icon: Icons.code_rounded,
-                      mono: '// belum ada aktivitas',
-                      text: 'Yuk mulai belajar!',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final child in children)
+              SizedBox(width: itemWidth, child: child),
+          ],
         );
       },
     );
   }
+}
 
-  /// Row kalau lebar, Column kalau sempit.
-  Widget _responsiveRow({
-    required bool wide,
-    required double gap,
-    required List<Widget> children,
-    List<int>? flexes,
-    bool stretch = false,
-  }) {
-    if (!wide) {
-      return Column(
-        children: [
-          for (int i = 0; i < children.length; i++) ...[
-            SizedBox(width: double.infinity, child: children[i]),
-            if (i != children.length - 1) SizedBox(height: gap),
-          ],
-        ],
-      );
-    }
-    final row = Row(
-      crossAxisAlignment:
-          stretch ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
-      children: [
-        for (int i = 0; i < children.length; i++) ...[
-          Expanded(flex: flexes?[i] ?? 1, child: children[i]),
-          if (i != children.length - 1) SizedBox(width: gap),
-        ],
-      ],
+/// ---------------------------------------------------------------
+/// DASHBOARD BODY (responsive)
+/// ---------------------------------------------------------------
+class DashboardBody extends StatelessWidget {
+  final ScreenInfo info; // UBAH: seluruh fakta layar, bukan hanya ScreenSize
+  const DashboardBody({super.key, required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.cc;
+    final size = info.size;
+    final isMobile = size == ScreenSize.mobile;
+    final dense = info.isDense;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(Dim.pagePadding(size, dense: dense)), // UBAH
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: Dim.maxContent),
+            // LayoutBuilder di DALAM batas konten, jadi keputusan layout
+            // memakai lebar konten yang sebenarnya.
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final split = box.maxWidth >= Breakpoints.splitInner;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header (tanpa nama user)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Siap ngoding hari ini? 👋',
+                                style: TextStyle(
+                                  // UBAH: mengecil juga saat mode padat
+                                  fontSize: (isMobile || dense) ? 22 : 28,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.6,
+                                  color: c.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Ringkasan perjalanan belajar kamu di LearnMate.',
+                                style: TextStyle(
+                                    color: c.textSecondary, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Hanya desktop. Mobile: toggle di AppBar,
+                        // tablet: toggle di rail.
+                        if (size == ScreenSize.desktop)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: c.cardColor,
+                              borderRadius: BorderRadius.circular(Dim.radiusInner),
+                              border: Border.all(color: c.cardBorder),
+                            ),
+                            child: ThemeToggleButton(color: c.textPrimary),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: Dim.headerGap(dense)), // UBAH
+
+                    // Stats: kolom otomatis
+                    AutoGrid(
+                      minItemWidth: 190,
+                      children: [
+                        StatCard(
+                          icon: Icons.menu_book_rounded,
+                          value: '6',
+                          label: 'Total materi',
+                          color: context.cs.primary,
+                        ),
+                        StatCard(
+                          icon: Icons.task_alt_rounded,
+                          value: '0',
+                          label: 'Materi selesai',
+                          color: c.accent,
+                        ),
+                        StatCard(
+                          icon: Icons.emoji_events_rounded,
+                          value: '0%',
+                          label: 'Rata-rata nilai kuis',
+                          color: c.highlight, // achievement
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Dim.gap),
+
+                    // Sedang dipelajari + Progres
+                    if (split)
+                      const IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(flex: 3, child: _CurrentLearningCard()),
+                            SizedBox(width: Dim.gap),
+                            Expanded(flex: 2, child: _ProgressCard()),
+                          ],
+                        ),
+                      )
+                    else
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _CurrentLearningCard(),
+                          SizedBox(height: Dim.gap),
+                          _ProgressCard(),
+                        ],
+                      ),
+                    const SizedBox(height: Dim.gap),
+
+                    // Materi terbaru: 1 atau 2 kolom otomatis
+                    SectionCard(
+                      title: 'Materi terbaru',
+                      trailing: TextButton(
+                        onPressed: () {},
+                        style: TextButton.styleFrom(
+                            foregroundColor: context.tone),
+                        child: const Text('Lihat semua'),
+                      ),
+                      child: AutoGrid(
+                        minItemWidth: 340,
+                        spacing: 10,
+                        children: [
+                          for (final course in latestCourses)
+                            CourseTile(course: course),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: Dim.gap),
+
+                    // Ringkasan aktivitas
+                    const SectionCard(
+                      title: 'Ringkasan aktivitas',
+                      child: _EmptyState(
+                        icon: Icons.code_rounded,
+                        mono: '// belum ada aktivitas',
+                        text: 'Yuk mulai belajar!',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
-    return stretch ? IntrinsicHeight(child: row) : row;
   }
 }
 
@@ -738,7 +937,7 @@ class SectionCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: c.cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(Dim.radiusCard),
         border: Border.all(color: c.cardBorder),
       ),
       child: Column(
@@ -756,7 +955,7 @@ class SectionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: 14),
@@ -791,7 +990,7 @@ class StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: c.cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(Dim.radiusCard),
         border: Border.all(color: c.cardBorder),
       ),
       child: Row(
@@ -801,7 +1000,7 @@ class StatCard extends StatelessWidget {
             height: 46,
             decoration: BoxDecoration(
               color: color.withAlpha(46),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(Dim.radiusInner),
             ),
             child: Icon(icon, color: iconColor),
           ),
@@ -820,9 +1019,10 @@ class StatCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
+                // maksimal 2 baris, tidak terpotong "…" di kartu sempit
                 Text(
                   label,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 13, color: c.textSecondary),
                 ),
@@ -856,7 +1056,7 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
       decoration: BoxDecoration(
         color: c.emptyBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(Dim.radiusInner),
         border: Border.all(color: c.cardBorder),
       ),
       child: Column(
@@ -865,6 +1065,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             mono,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 13,
@@ -903,6 +1104,7 @@ class _CurrentLearningCard extends StatelessWidget {
           style: FilledButton.styleFrom(
             backgroundColor: c.accent,
             foregroundColor: c.onAccent,
+            minimumSize: const Size(0, Dim.minTap), // area sentuh 48 dp
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12)),
           ),
@@ -992,7 +1194,7 @@ class CourseTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: c.cardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(Dim.radiusInner),
         border: Border.all(color: c.cardBorder),
       ),
       child: Row(
@@ -1024,6 +1226,8 @@ class CourseTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   course.category,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: c.textSecondary),
                 ),
               ],
