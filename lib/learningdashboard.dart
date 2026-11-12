@@ -1,19 +1,7 @@
 import 'package:flutter/material.dart';
-import 'learningdashboard.dart';
 
-// LearnMate - Learning Dashboard (Responsive + Adaptive) v2
-// Light : Morning Village   |   Dark : Galaxy Night
-// UI only, tanpa dependency tambahan. Taruh di lib/learningdashboard.dart.
-//
-// Pembagian tugas API responsif:
-//   LayoutBuilder      -> lebar area yang tersedia (struktur navigasi, kolom grid)
-//   OrientationBuilder -> portrait / landscape (mode padat di HP miring)
-//   MediaQuery         -> tinggi jendela (mode padat) dan skala teks sistem
-//
-// Penanda perubahan dari v1: // BARU dan // UBAH
 
-// Nyalakan (true) saat testing responsif. Muncul chip kecil di pojok kanan
-// bawah berisi lebar, kelas layar, orientasi, tinggi jendela, skala teks.
+
 const bool kShowScreenInfo = false;
 
 void main() => runApp(const LearnMateApp());
